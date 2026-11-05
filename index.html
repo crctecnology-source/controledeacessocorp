@@ -31,7 +31,7 @@ async function boot(){
 }
 function showLogin(){app.innerHTML=`<div class="box"><h2>Controle de Acesso</h2><label>E-mail<input id="em" type="email"></label><label>Senha (mín. 8 caracteres)<input id="pw" type="password"></label><button class="p" onclick="entrar()">Entrar</button><button onclick="criar()">Primeiro acesso: criar conta de administrador</button></div>`}
 async function entrar(){const{error}=await sb.auth.signInWithPassword({email:$('em').value,password:$('pw').value});error?alert('E-mail ou senha inválidos.'):boot()}
-async function criar(){if($('pw').value.length<8)return alert('Use uma senha com no mínimo 8 caracteres.');const{data,error}=await sb.auth.signUp({email:$('em').value,password:$('pw').value});if(error)return alert(error.message);data.session?boot():alert('Confirme o e-mail enviado e depois entre.')}
+async function criar(){if($('pw').value.length<8)return alert('Use uma senha com no mínimo 8 caracteres.');const{data,error}=await sb.auth.signUp({email:$('em').value,password:$('pw').value,options:{emailRedirectTo:location.origin+location.pathname}});if(error)return alert(error.message);data.session?boot():alert('Confirme o e-mail enviado e depois entre.')}
 async function shell(first){
   let lg='';if(condo?.logo_path){const{data}=await sb.storage.from('fotos').createSignedUrl(condo.logo_path,3600);if(data)lg=`<img src="${data.signedUrl}" alt="">`}
   app.innerHTML=`<div id="shell"><nav>${NAV.map(([i,t,on])=>`<button title="${t}" aria-label="${t}" ${on&&!first?'':'disabled'}>${i}</button>`).join('')}</nav><div id="c"><header>${lg}<b>${esc(condo?.nome||'Controle de Acesso')}</b><button onclick="sb.auth.signOut().then(boot)">Sair</button></header><div id="main"></div></div></div>`;
