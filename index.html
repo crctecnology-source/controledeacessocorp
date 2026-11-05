@@ -1,0 +1,61 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Controle de Acesso</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<style>
+:root{--bg:#f5f6f8;--sf:#fff;--tx:#1b2430;--bd:#d9dee5;--ac:#1f6feb;--ac2:#e8f0fe;color-scheme:light dark}
+@media(prefers-color-scheme:dark){:root{--bg:#12161c;--sf:#1b2129;--tx:#e8ecf1;--bd:#2f3844;--ac:#5b9cff;--ac2:#1e2b40}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.4 system-ui,sans-serif}
+#shell{display:flex;min-height:100vh}nav{width:60px;background:var(--sf);border-right:1px solid var(--bd);display:flex;flex-direction:column;gap:4px;padding:8px 6px}
+nav button{font-size:20px;background:none;border:0;padding:8px;border-radius:8px}nav button:not(:disabled){background:var(--ac2)}nav button:disabled{opacity:.35}
+#c{flex:1;min-width:0;padding:12px 16px}header{display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--bd);padding-bottom:10px;margin-bottom:12px;font-size:16px}header img{height:40px;max-width:120px;object-fit:contain}header button{margin-left:auto}
+.card,.box{background:var(--sf);border:1px solid var(--bd);border-radius:10px;padding:14px}.box{max-width:360px;margin:12vh auto;display:flex;flex-direction:column;gap:10px}
+.g{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:10px 0}label{display:flex;flex-direction:column;gap:3px;font-size:12px;opacity:.85}
+input,textarea{font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:6px 8px;min-width:0}
+button{font:inherit;color:var(--tx);background:var(--sf);border:1px solid var(--bd);border-radius:6px;padding:7px 12px;cursor:pointer}button.p{background:var(--ac);border-color:var(--ac);color:#fff}
+</style></head><body><div id="app"></div>
+<script>
+/* 1) Cole aqui os dados do seu projeto (Supabase > Project Settings > API). A anon key é pública por desenho; a proteção vem do RLS. */
+const SUPABASE_URL='https://jwjiqguxrutqsksdsrva.supabase.co', SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp3amlxZ3V4cnV0cXNrc2RzcnZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM4ODE5NzEsImV4cCI6MjEwOTQ1Nzk3MX0.PFMEScTm9tObc5_BUJCkQzZHAPhOyi0OL2u67Ybrx9k';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY),$=id=>document.getElementById(id),app=$('app');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let condo=null,galpoes=[];
+const FL=[['nome','Nome'],['cnpj','CNPJ'],['cep','CEP'],['endereco','Endereço'],['numero','Número'],['bairro','Bairro'],['cidade','Cidade'],['uf','UF']];
+const NAV=[['🏢','Condomínio',1],['🏭','Condôminos (em breve)'],['🧑‍💼','Visitantes (em breve)'],['🛠️','Prestadores (em breve)'],['✅','Aprovações (em breve)'],['📟','Dispositivos (em breve)'],['📄','Relatórios (em breve)']];
+
+async function boot(){
+  const{data:{session}}=await sb.auth.getSession(); if(!session)return showLogin();
+  const{data:p}=await sb.from('profiles').select('*').eq('id',session.user.id).maybeSingle();
+  if(!p){condo=null;galpoes=[];return shell(true)}            // primeiro acesso: cadastro do condomínio obrigatório
+  condo=(await sb.from('condos').select('*').eq('id',p.condo_id).single()).data;
+  galpoes=(await sb.from('galpoes').select('*').eq('condo_id',p.condo_id).order('identificacao')).data||[];
+  shell(false);
+}
+function showLogin(){app.innerHTML=`<div class="box"><h2>Controle de Acesso</h2><label>E-mail<input id="em" type="email"></label><label>Senha (mín. 8 caracteres)<input id="pw" type="password"></label><button class="p" onclick="entrar()">Entrar</button><button onclick="criar()">Primeiro acesso: criar conta de administrador</button></div>`}
+async function entrar(){const{error}=await sb.auth.signInWithPassword({email:$('em').value,password:$('pw').value});error?alert('E-mail ou senha inválidos.'):boot()}
+async function criar(){if($('pw').value.length<8)return alert('Use uma senha com no mínimo 8 caracteres.');const{data,error}=await sb.auth.signUp({email:$('em').value,password:$('pw').value});if(error)return alert(error.message);data.session?boot():alert('Confirme o e-mail enviado e depois entre.')}
+async function shell(first){
+  let lg='';if(condo?.logo_path){const{data}=await sb.storage.from('fotos').createSignedUrl(condo.logo_path,3600);if(data)lg=`<img src="${data.signedUrl}" alt="">`}
+  app.innerHTML=`<div id="shell"><nav>${NAV.map(([i,t,on])=>`<button title="${t}" aria-label="${t}" ${on&&!first?'':'disabled'}>${i}</button>`).join('')}</nav><div id="c"><header>${lg}<b>${esc(condo?.nome||'Controle de Acesso')}</b><button onclick="sb.auth.signOut().then(boot)">Sair</button></header><div id="main"></div></div></div>`;
+  condoForm(first);
+}
+function condoForm(first){const c=condo||{};
+  $('main').innerHTML=`<h2>${first?'Cadastro do condomínio (obrigatório no primeiro acesso)':'Condomínio'}</h2><div class="card"><label>Logo (PNG, JPG ou JPEG)<input id="logo" type="file" accept="image/png,image/jpeg"></label><div class="g">${FL.map(([k,l])=>`<label>${l}<input id="f_${k}" value="${esc(c[k])}" ${k==='cep'?'onblur="cep(this)"':''} ${k==='uf'?'maxlength="2"':''}></label>`).join('')}</div><label>Informações gerais<textarea id="f_info" rows="2">${esc(c.info)}</textarea></label><div class="g"><label>Quantidade de galpões<input id="qg" type="number" min="${galpoes.length||1}" max="200" value="${galpoes.length||''}" oninput="rg()"></label></div><div id="gl" class="g"></div><button class="p" onclick="salvar(${first})">Salvar</button></div>`;
+  rg();}
+function rg(){const n=Math.min(+$('qg').value||0,200),old=[...document.querySelectorAll('.gi')].map(i=>i.value);
+  $('gl').innerHTML=Array.from({length:n},(_,i)=>`<input class="gi" placeholder="Galpão ${i+1} (ex.: G-01)" value="${esc(old[i]??galpoes[i]?.identificacao)}" ${galpoes[i]?`data-id="${galpoes[i].id}"`:''}>`).join('')}
+async function cep(el){const c=el.value.replace(/\D/g,'');if(c.length!==8)return;try{const d=await(await fetch(`https://viacep.com.br/ws/${c}/json/`)).json();if(d.erro)return alert('CEP não encontrado.');
+  $('f_endereco').value=d.logradouro||'';$('f_bairro').value=d.bairro||'';$('f_cidade').value=d.localidade||'';$('f_uf').value=d.uf||'';$('f_numero').focus()}catch(e){alert('Não foi possível consultar o CEP. Preencha manualmente.')}}
+async function salvar(first){
+  const o={};FL.forEach(([k])=>o[k]=$('f_'+k).value.trim());o.info=$('f_info').value.trim();
+  const gi=[...document.querySelectorAll('.gi')],ids=gi.map(i=>i.value.trim());
+  if(FL.some(([k])=>!o[k])||!ids.length||ids.some(x=>!x)||new Set(ids).size!==ids.length)return alert('Preencha todos os campos e identifique cada galpão com um nome único.');
+  let id=condo?.id;
+  if(first){const{data,error}=await sb.rpc('criar_condominio',{p:o,g:ids});if(error)return alert(error.message);id=data}
+  else{const{error}=await sb.from('condos').update(o).eq('id',id);if(error)return alert(error.message);
+    for(const[n,i]of gi.entries())if(i.dataset.id)await sb.from('galpoes').update({identificacao:ids[n]}).eq('id',i.dataset.id);
+    const novos=gi.filter(i=>!i.dataset.id).map(i=>({condo_id:id,identificacao:i.value.trim()}));if(novos.length)await sb.from('galpoes').insert(novos)}
+  const f=$('logo').files[0];
+  if(f){const p=`${id}/logo-${Date.now()}.${f.type==='image/png'?'png':'jpg'}`,{error}=await sb.storage.from('fotos').upload(p,f);if(!error)await sb.from('condos').update({logo_path:p}).eq('id',id)}
+  boot();
+}
+boot();
+</script></body></html>
