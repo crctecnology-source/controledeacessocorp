@@ -41,6 +41,13 @@ th,td{border-color:#5a5959}
 td{color:#f2f2f2}
 .md>div{background:#3B3A3A;color:#f2f2f2}
 @media print{.card,.box{background:#fff!important;color:#000!important;box-shadow:none}td,th,label{color:#000!important}th{background:#eee!important}header{background:#fff!important;color:#000!important;box-shadow:none}input,select{box-shadow:none}}
+/* ===== Tema 2: cabeçalho/menu brancos com moldura, botões em tons suaves ===== */
+nav{background:#FFFEFE;border:1.5px solid #3B3A3A;border-radius:14px;margin:8px 0 8px 8px;height:calc(100vh - 16px);top:8px;box-shadow:none}
+nav button,nav button:not(:disabled){background:#3B3A3A}
+nav button:not(:disabled):hover{filter:brightness(1.35)}
+header{background:#FFFEFE;color:#2a2a3c;border:1.5px solid #3B3A3A;border-radius:14px;box-shadow:none}
+header button,.ph button,button.p{background:#8DA0FF;color:#10143f}
+header button:hover,.ph button:hover,button.p:hover{filter:brightness(1.08)}
 </style></head><body><div id="app"></div>
 <script>
 /* 1) Cole aqui os dados do seu projeto (Supabase > Project Settings > API). A anon key é pública por desenho; a proteção vem do RLS. */
