@@ -1,5 +1,6 @@
 <!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Controle de Acesso</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 :root{--bg:#f5f6f8;--sf:#fff;--tx:#1b2430;--bd:#d9dee5;--ac:#1f6feb;--ac2:#e8f0fe;color-scheme:light dark}
 @media(prefers-color-scheme:dark){:root{--bg:#12161c;--sf:#1b2129;--tx:#e8ecf1;--bd:#2f3844;--ac:#5b9cff;--ac2:#1e2b40}}
@@ -12,6 +13,7 @@ nav button{font-size:20px;background:none;border:0;padding:8px;border-radius:8px
 input,textarea{font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:6px 8px;min-width:0}
 button{font:inherit;color:var(--tx);background:var(--sf);border:1px solid var(--bd);border-radius:6px;padding:7px 12px;cursor:pointer}button.p{background:var(--ac);border-color:var(--ac);color:#fff}
 table{border-collapse:collapse;width:100%}th,td{border:1px solid var(--bd);padding:4px 6px;font-size:13px;text-align:left;vertical-align:middle}td input,td select{width:100%;min-width:90px}.tw{overflow-x:auto;margin-top:8px}.ph{display:flex;gap:8px;align-items:center}.ph img{width:56px;height:56px;object-fit:cover;border-radius:6px}.ph>div{display:flex;flex-direction:column;gap:4px}.ph input[type=file]{width:170px;font-size:11px}.md{position:fixed;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;z-index:9}.md>div{background:var(--sf);padding:12px;border-radius:10px}.md video{max-width:100%;width:420px}.th{width:48px}.th img{width:40px;height:40px;object-fit:cover;border-radius:4px}button.d{color:#c62828}
+@media print{nav,.no,button{display:none!important}body{background:#fff;color:#000}#shell{display:block}th{background:#eee;color:#000}.card{border:0}}
 </style></head><body><div id="app"></div>
 <script>
 /* 1) Cole aqui os dados do seu projeto (Supabase > Project Settings > API). A anon key é pública por desenho; a proteção vem do RLS. */
@@ -20,7 +22,7 @@ const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY),$=id=>document.getElem
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let condo=null,galpoes=[];
 const FL=[['nome','Nome'],['cnpj','CNPJ'],['cep','CEP'],['endereco','Endereço'],['numero','Número'],['bairro','Bairro'],['cidade','Cidade'],['uf','UF']];
-const NAV=[['🏢','Condomínio','condo'],['🏭','Condôminos (empresas)','emp'],['✅','Aprovações','apr'],['🧑‍💼','Visitantes','vis'],['🛠️','Prestadores de serviço','srv'],['📟','Dispositivos','dev'],['👥','Usuários do sistema','usr'],['📄','Relatórios (em breve)']];
+const NAV=[['🏢','Condomínio','condo'],['🏭','Condôminos (empresas)','emp'],['✅','Aprovações','apr'],['🧑‍💼','Visitantes','vis'],['🛠️','Prestadores de serviço','srv'],['📟','Dispositivos','dev'],['👥','Usuários do sistema','usr'],['📄','Relatórios','rel'],['🔒','Privacidade (LGPD)','lgpd']];
 
 async function boot(){
   if(location.hash.startsWith('#empresa-'))return publico(location.hash.slice(9));
@@ -36,7 +38,7 @@ async function entrar(){const{error}=await sb.auth.signInWithPassword({email:$('
 async function criar(){if($('pw').value.length<8)return alert('Use uma senha com no mínimo 8 caracteres.');const{data,error}=await sb.auth.signUp({email:$('em').value,password:$('pw').value,options:{emailRedirectTo:location.origin+location.pathname}});if(error)return alert(error.message);data.session?boot():alert('Confirme o e-mail enviado e depois entre.')}
 async function shell(first){
   let lg='';if(condo?.logo_path)lg=`<img src="${logoUrl(condo.logo_path)}" alt="">`;
-  app.innerHTML=`<div id="shell"><nav>${NAV.map(([i,t,p])=>`<button title="${t}" aria-label="${t}" ${p&&!first&&(papel==='admin'||!['apr','dev','usr'].includes(p))?`onclick="go('${p}')"`:'disabled'}>${i}</button>`).join('')}</nav><div id="c"><header>${lg}<b>${esc(condo?.nome||'Controle de Acesso')}</b><button onclick="sb.auth.signOut().then(boot)">Sair</button></header><div id="main"></div></div></div>`;
+  app.innerHTML=`<div id="shell"><nav>${NAV.map(([i,t,p])=>`<button title="${t}" aria-label="${t}" ${p&&!first&&(papel==='admin'||!['apr','dev','usr','lgpd'].includes(p))?`onclick="go('${p}')"`:'disabled'}>${i}</button>`).join('')}</nav><div id="c"><header>${lg}<b>${esc(condo?.nome||'Controle de Acesso')}</b><button onclick="sb.auth.signOut().then(boot)">Sair</button></header><div id="main"></div></div></div>`;
   first?condoForm(true):go('condo');
 }
 function condoForm(first){const c=condo||{};
@@ -64,7 +66,7 @@ let pg='condo',edId=null,pc=0;
 const CARROS=['Chevrolet','Fiat','Volkswagen','Ford','Toyota','Honda','Hyundai','Renault','Jeep','Nissan','Peugeot','Citroën','BYD','Mitsubishi','Kia','BMW','Mercedes-Benz','Audi','Volvo','Caoa Chery','GWM','Iveco','Scania','DAF','MAN','Moto Honda','Moto Yamaha','Outra'];
 const EF=[['nome','Empresa'],['cnpj','CNPJ'],['telefone','Telefone'],['email','E-mail'],['responsavel','Responsável']];
 const uid=()=>Math.random().toString(36).slice(2,10),logoUrl=p=>sb.storage.from('logos').getPublicUrl(p).data.publicUrl;
-const go=p=>{pg=p;edId=null;({condo:()=>condoForm(false),emp:empPage,apr:aprPage,vis:()=>visPage('visitante'),srv:()=>visPage('servico'),dev:devPage,usr:usrPage})[p]()};
+const go=p=>{pg=p;edId=null;({condo:()=>condoForm(false),emp:empPage,apr:aprPage,vis:()=>visPage('visitante'),srv:()=>visPage('servico'),dev:devPage,usr:usrPage,rel:relPage,lgpd:lgpdPage})[p]()};
 const ph=a=>{const i='p'+(++pc);return `<div class="ph"><img id="${i}i" alt="" hidden><div><input type="file" accept="image/png,image/jpeg" onchange="pick('${i}',this)"><button type="button" onclick="cam('${i}')">📷 Câmera</button></div><input type="hidden" id="${i}" ${a}></div>`};
 function setPh(i,v){$(i).value=v||'';const m=$(i+'i');m.src=v||'';m.hidden=!v}
 function shrink(src,cb,max=240){const im=new Image();im.onload=()=>{const s=Math.min(1,max/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=im.width*s;c.height=im.height*s;c.getContext('2d').drawImage(im,0,0,c.width,c.height);cb(c.toDataURL('image/jpeg',.8))};im.src=src}
@@ -142,10 +144,10 @@ async function visPage(t){
   const paths=(vs||[]).map(v=>v.foto_path).filter(Boolean),urls={};
   if(paths.length){const{data}=await sb.storage.from('fotos').createSignedUrls(paths,3600);(data||[]).forEach(x=>urls[x.path]=x.signedUrl)}
   const inp=(k,l,x='')=>`<label>${l}<input id="v_${k}" ${x}></label>`;
-  $('main').innerHTML=`<h2>${s?'Cadastro de prestadores de serviço':'Cadastro de visitantes'}</h2><div class="card" id="fv"><label>Foto (arquivo ou câmera)${ph('data-f="foto"')}</label><div class="g">${inp('nome','Nome *')}${inp('rg','RG')}${inp('cpf','CPF *','onblur="lastV(this)"')}${s?inp('empresa_representada','Empresa que representa *')+inp('tipo_servico','Tipo de serviço *'):''}<label>Local da visita *<select id="v_local" onchange="authOpts(this.value)"><option value="">Selecione</option><option value="C">${esc(condo.nome)} (condomínio)</option>${(es||[]).map(e=>`<option value="${e.id}">${esc(e.nome)}</option>`).join('')}</select></label><label>Autorizado por<select id="v_aut"><option value="">Selecione o local</option></select></label>${inp('entrada','Hora de entrada','type="datetime-local"')}${inp('saida','Hora de saída','type="datetime-local"')}${inp('placa','Placa')}<label>Marca<select id="v_marca"><option value="">Selecione</option>${CARROS.map(x=>`<option>${x}</option>`).join('')}</select></label>${inp('modelo','Modelo')}${inp('cor','Cor')}${inp('motivo','Motivo da visita')}</div><p id="lv" class="card" hidden></p><button class="p" onclick="saveVis('${t}')">${edId?'Salvar alterações':'Registrar'}</button> ${edId?`<button onclick="go('${s?'srv':'vis'}')">Cancelar</button>`:''}</div>
+  $('main').innerHTML=`<h2>${s?'Cadastro de prestadores de serviço':'Cadastro de visitantes'}</h2><div class="card" id="fv"><label>Foto (arquivo ou câmera)${ph('data-f="foto"')}</label><div class="g">${inp('nome','Nome *')}${inp('rg','RG')}${inp('cpf','CPF *','onblur="lastV(this)"')}${s?inp('empresa_representada','Empresa que representa *')+inp('tipo_servico','Tipo de serviço *'):''}<label>Local da visita *<select id="v_local" onchange="authOpts(this.value)"><option value="">Selecione</option><option value="C">${esc(condo.nome)} (condomínio)</option>${(es||[]).map(e=>`<option value="${e.id}">${esc(e.nome)}</option>`).join('')}</select></label><label>Autorizado por<select id="v_aut"><option value="">Selecione o local</option></select></label>${inp('entrada','Hora de entrada','type="datetime-local"')}${inp('saida','Hora de saída','type="datetime-local"')}${inp('placa','Placa')}<label>Marca<select id="v_marca"><option value="">Selecione</option>${CARROS.map(x=>`<option>${x}</option>`).join('')}</select></label>${inp('modelo','Modelo')}${inp('cor','Cor')}${inp('motivo','Motivo da visita')}</div><label style="flex-direction:row;gap:6px;align-items:center"><input type="checkbox" id="v_lgpd"> Titular ciente do tratamento dos dados para controle de acesso (LGPD) *</label><p id="lv" class="card" hidden></p><button class="p" onclick="saveVis('${t}')">${edId?'Salvar alterações':'Registrar'}</button> ${edId?`<button onclick="go('${s?'srv':'vis'}')">Cancelar</button>`:''}</div>
   <h3>Registros</h3><div class="card tw"><table><tr><th class="th">Foto</th><th>Nome</th><th>CPF</th>${s?'<th>Empresa / Serviço</th>':''}<th>Local</th><th>Autorizado por</th><th>Entrada</th><th>Saída</th><th></th></tr>${(vs||[]).map(v=>`<tr><td class="th">${urls[v.foto_path]?`<img src="${urls[v.foto_path]}" alt="">`:''}</td><td>${esc(v.nome)}</td><td>${esc(v.cpf)}</td>${s?`<td>${esc(v.empresa_representada)} / ${esc(v.tipo_servico)}</td>`:''}<td>${esc(v.empresas?.nome||condo.nome+' (condomínio)')}</td><td>${esc(v.autorizado_por)}</td><td>${fmt(v.entrada)}</td><td>${fmt(v.saida)}</td><td>${v.saida?'':`<button onclick="saidaVis('${v.id}','${t}')">Saída agora</button> `}<button onclick="editVis('${v.id}','${t}')">Editar</button> <button class="d" onclick="delVis('${v.id}','${t}')">Excluir</button></td></tr>`).join('')||`<tr><td colspan="${s?9:8}">Nenhum registro.</td></tr>`}</table></div>`;
   if(edId){const v=vs.find(x=>x.id===edId);['nome','rg','cpf','empresa_representada','tipo_servico','placa','modelo','cor','motivo'].forEach(k=>{if($('v_'+k))$('v_'+k).value=v[k]||''});
-    $('v_marca').value=v.marca||'';$('v_local').value=v.empresa_destino_id||'C';await authOpts($('v_local').value,v.autorizado_por||'');$('v_entrada').value=toLoc(v.entrada);$('v_saida').value=toLoc(v.saida);
+    $('v_marca').value=v.marca||'';$('v_lgpd').checked=!!v.lgpd_ciente;$('v_local').value=v.empresa_destino_id||'C';await authOpts($('v_local').value,v.autorizado_por||'');$('v_entrada').value=toLoc(v.entrada);$('v_saida').value=toLoc(v.saida);
     const f=$('fv').querySelector('[data-f=foto]');if(urls[v.foto_path]){const m=$(f.id+'i');m.src=urls[v.foto_path];m.hidden=false}}
   else $('v_entrada').value=toLoc(new Date().toISOString());
 }
@@ -158,9 +160,9 @@ async function lastV(el){
 }
 async function saveVis(t){
   const s=t==='servico',g=k=>$('v_'+k).value.trim(),loc=$('v_local').value;
-  const o={condo_id:condo.id,tipo:t,nome:g('nome'),rg:g('rg'),cpf:g('cpf'),placa:g('placa').toUpperCase(),marca:$('v_marca').value,modelo:g('modelo'),cor:g('cor'),motivo:g('motivo'),autorizado_por:$('v_aut').value,empresa_destino_id:loc==='C'?null:loc,entrada:iso(g('entrada'))||new Date().toISOString(),saida:iso(g('saida'))};
+  const o={condo_id:condo.id,tipo:t,nome:g('nome'),rg:g('rg'),cpf:g('cpf'),placa:g('placa').toUpperCase(),marca:$('v_marca').value,modelo:g('modelo'),cor:g('cor'),motivo:g('motivo'),autorizado_por:$('v_aut').value,empresa_destino_id:loc==='C'?null:loc,lgpd_ciente:$('v_lgpd').checked,entrada:iso(g('entrada'))||new Date().toISOString(),saida:iso(g('saida'))};
   if(s){o.empresa_representada=g('empresa_representada');o.tipo_servico=g('tipo_servico')}
-  if(!o.nome||!o.cpf||!loc||(s&&(!o.empresa_representada||!o.tipo_servico)))return alert('Preencha os campos obrigatórios (*).');
+  if(!o.nome||!o.cpf||!loc||!o.lgpd_ciente||(s&&(!o.empresa_representada||!o.tipo_servico)))return alert('Preencha os campos obrigatórios (*).');
   const fd=$('fv').querySelector('[data-f=foto]').value;let old=null;
   if(edId)old=(await sb.from('visitas').select('foto_path').eq('id',edId).single()).data?.foto_path;
   if(fd){const p=await up(`${condo.id}/vis/${uid()}.jpg`,fd);if(!p)return alert('Falha ao enviar a foto.');o.foto_path=p}
@@ -203,6 +205,57 @@ async function convidar(){const e=$('u_em').value.trim();if(!e)return alert('Inf
 async function delConv(id){await sb.from('convites').delete().eq('id',id);usrPage()}
 async function mudaPapel(id,p){const{error}=await sb.rpc('alterar_papel',{p_user:id,p_papel:p});if(error)alert(error.message);usrPage()}
 async function remUser(id){if(!confirm('Remover o acesso desta pessoa?'))return;const{error}=await sb.rpc('remover_usuario',{p_user:id});if(error)alert(error.message);usrPage()}
+
+/* ===== Bloco 5: relatórios e LGPD ===== */
+let relRows=[],titData=null;
+async function relPage(){
+  const{data:es}=await sb.from('empresas').select('nome').eq('condo_id',condo.id).order('nome');
+  $('main').innerHTML=`<h2 class="no">Relatórios</h2><div class="card no"><div class="g"><label>Tipo<select id="r_t"><option value="">Todos</option><option>Funcionário</option><option>Visitante</option><option>Serviço</option></select></label><label>Empresa / local<select id="r_e"><option value="">Todas</option><option>${esc(condo.nome)} (condomínio)</option>${(es||[]).map(e=>`<option>${esc(e.nome)}</option>`).join('')}</select></label><label>De<input type="date" id="r_d"></label><label>Até<input type="date" id="r_a"></label><label>Buscar por<select id="r_c"><option>Nome</option><option>CPF</option><option>RG</option><option>Placa</option></select></label><label>Termo<input id="r_q"></label></div><p><button class="p" onclick="gerarRel()">Gerar relatório</button> <button onclick="print()">Salvar em PDF / imprimir</button> <button onclick="xlsRel()">Baixar Excel</button></p></div><div id="r_o"></div>`;
+  gerarRel();
+}
+async function gerarRel(){
+  const t=$('r_t').value,e=$('r_e').value,d=$('r_d').value,a=$('r_a').value,c=$('r_c').value,q=$('r_q').value.trim().toLowerCase();
+  let vq=sb.from('visitas').select('*,empresas(nome)').eq('condo_id',condo.id).order('entrada',{ascending:false}).limit(5000);
+  if(t==='Visitante')vq=vq.eq('tipo','visitante');if(t==='Serviço')vq=vq.eq('tipo','servico');
+  if(d)vq=vq.gte('entrada',new Date(d+'T00:00:00').toISOString());if(a)vq=vq.lte('entrada',new Date(a+'T23:59:59').toISOString());
+  const[{data:cs},{data:vs}]=await Promise.all([(t&&t!=='Funcionário')||d||a?{data:[]}:sb.from('colaboradores').select('nome,cpf,rg,placa,empresas(nome)').eq('condo_id',condo.id).eq('status','aprovado').limit(5000),t==='Funcionário'?{data:[]}:vq]);
+  let r=[...(cs||[]).map(x=>({Tipo:'Funcionário',Nome:x.nome,CPF:x.cpf,RG:x.rg,'Empresa / Local':x.empresas?.nome||'',Placa:x.placa||'','Autorizado por':'','Entrada':'','Saída':''})),
+    ...(vs||[]).map(x=>({Tipo:x.tipo==='servico'?'Serviço':'Visitante',Nome:x.nome,CPF:x.cpf,RG:x.rg,'Empresa / Local':x.empresas?.nome||condo.nome+' (condomínio)',Placa:x.placa||'','Autorizado por':x.autorizado_por||'','Entrada':fmt(x.entrada),'Saída':x.saida?fmt(x.saida):''}))];
+  r=r.filter(x=>(!e||x['Empresa / Local']===e)&&(!q||String(x[c]||'').toLowerCase().includes(q)));
+  relRows=r;const H=['Tipo','Nome','CPF','RG','Empresa / Local','Placa','Autorizado por','Entrada','Saída'];
+  $('r_o').innerHTML=`<div class="card"><h3>Relatório de acessos — ${esc(condo.nome)}</h3><small>Gerado em ${fmt(new Date())} · ${r.length} registro(s)${d||a?` · período ${d||'…'} a ${a||'…'}`:''}</small><div class="tw"><table><tr>${H.map(h=>`<th>${h}</th>`).join('')}</tr>${r.map(x=>`<tr>${H.map(h=>`<td>${esc(x[h])}</td>`).join('')}</tr>`).join('')||`<tr><td colspan="9">Sem registros.</td></tr>`}</table></div></div>`;
+}
+function xlsRel(){if(!relRows.length)return alert('Gere o relatório primeiro.');if(typeof XLSX==='undefined')return alert('Biblioteca do Excel não carregou. Verifique a conexão.');const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(relRows),'Relatório');XLSX.writeFile(wb,'relatorio-acessos.xlsx')}
+async function lgpdPage(){
+  const{data:au}=await sb.from('auditoria').select('*').eq('condo_id',condo.id).order('em',{ascending:false}).limit(50);
+  $('main').innerHTML=`<h2>Privacidade (LGPD)</h2>
+  <div class="card"><b>Direitos do titular</b><p>Busque pelo CPF para baixar os dados da pessoa ou excluí-los. Cadastros de colaborador são apagados; registros de visita são anonimizados (o histórico de datas é mantido sem identificar a pessoa).</p><div class="g"><label>CPF<input id="l_cpf"></label></div><button class="p" onclick="buscaTit()">Buscar</button><div id="l_res"></div></div>
+  <div class="card"><b>Retenção</b><p>Anonimiza visitas e prestadores mais antigos que o prazo abaixo (apaga também as fotos). Defina o prazo com seu jurídico ou com o condomínio.</p><div class="g"><label>Anonimizar registros com mais de (dias)<input id="l_dias" type="number" min="30" value="180"></label></div><button onclick="retencao()">Anonimizar agora</button></div>
+  <h3>Últimas alterações em dados pessoais</h3><div class="card tw"><table><tr><th>Data</th><th>Tabela</th><th>Ação</th></tr>${(au||[]).map(x=>`<tr><td>${fmt(x.em)}</td><td>${esc(x.tabela)}</td><td>${esc(x.acao)}</td></tr>`).join('')||'<tr><td colspan="3">Sem registros.</td></tr>'}</table></div>`;
+}
+async function buscaTit(){
+  const c=$('l_cpf').value.trim();if(!c)return;
+  const[{data:cs},{data:vs}]=await Promise.all([sb.from('colaboradores').select('*').eq('condo_id',condo.id).eq('cpf',c),sb.from('visitas').select('*').eq('condo_id',condo.id).eq('cpf',c)]);
+  titData={cpf:c,cs:cs||[],vs:vs||[]};
+  $('l_res').innerHTML=`<p>${titData.cs.length} cadastro(s) de colaborador e ${titData.vs.length} registro(s) de visita.</p>${titData.cs.length+titData.vs.length?'<button onclick="baixarTit()">Baixar dados (JSON)</button> <button class="d" onclick="apagarTit()">Excluir / anonimizar</button>':''}`;
+}
+function baixarTit(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify({colaboradores:titData.cs,visitas:titData.vs},null,2)],{type:'application/json'}));a.download='dados-titular.json';a.click()}
+async function apagarTit(){
+  if(!confirm('Excluir os cadastros e anonimizar as visitas deste CPF? Não há como desfazer.'))return;
+  const f=[...titData.cs,...titData.vs].map(x=>x.foto_path).filter(Boolean);if(f.length)await sb.storage.from('fotos').remove(f);
+  await sb.from('colaboradores').delete().eq('condo_id',condo.id).eq('cpf',titData.cpf);
+  await sb.from('visitas').update({nome:'Titular removido (LGPD)',cpf:null,rg:null,placa:null,marca:null,modelo:null,cor:null,foto_path:null}).eq('condo_id',condo.id).eq('cpf',titData.cpf);
+  alert('Dados excluídos/anonimizados.');lgpdPage();
+}
+async function retencao(){
+  const n=+$('l_dias').value;if(!n||n<30)return alert('Informe ao menos 30 dias.');
+  const{data}=await sb.from('visitas').select('id,foto_path').eq('condo_id',condo.id).lt('entrada',new Date(Date.now()-n*864e5).toISOString()).not('cpf','is',null);
+  if(!data?.length)return alert('Nenhum registro antigo para anonimizar.');
+  if(!confirm(`Anonimizar ${data.length} registro(s) com mais de ${n} dias? Não há como desfazer.`))return;
+  const f=data.map(x=>x.foto_path).filter(Boolean);if(f.length)await sb.storage.from('fotos').remove(f);
+  for(let i=0;i<data.length;i+=100)await sb.from('visitas').update({nome:'Titular removido (LGPD)',cpf:null,rg:null,placa:null,marca:null,modelo:null,cor:null,foto_path:null}).in('id',data.slice(i,i+100).map(x=>x.id));
+  alert('Registros anonimizados.');lgpdPage();
+}
 
 boot();
 </script></body></html>
