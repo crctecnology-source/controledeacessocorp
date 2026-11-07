@@ -20,7 +20,7 @@ const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY),$=id=>document.getElem
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let condo=null,galpoes=[];
 const FL=[['nome','Nome'],['cnpj','CNPJ'],['cep','CEP'],['endereco','Endereço'],['numero','Número'],['bairro','Bairro'],['cidade','Cidade'],['uf','UF']];
-const NAV=[['🏢','Condomínio','condo'],['🏭','Condôminos (empresas)','emp'],['✅','Aprovações','apr'],['🧑‍💼','Visitantes (em breve)'],['🛠️','Prestadores (em breve)'],['📟','Dispositivos (em breve)'],['📄','Relatórios (em breve)']];
+const NAV=[['🏢','Condomínio','condo'],['🏭','Condôminos (empresas)','emp'],['✅','Aprovações','apr'],['🧑‍💼','Visitantes','vis'],['🛠️','Prestadores de serviço','srv'],['📟','Dispositivos (em breve)'],['📄','Relatórios (em breve)']];
 
 async function boot(){
   if(location.hash.startsWith('#empresa-'))return publico(location.hash.slice(9));
@@ -64,7 +64,7 @@ let pg='condo',edId=null,pc=0;
 const CARROS=['Chevrolet','Fiat','Volkswagen','Ford','Toyota','Honda','Hyundai','Renault','Jeep','Nissan','Peugeot','Citroën','BYD','Mitsubishi','Kia','BMW','Mercedes-Benz','Audi','Volvo','Caoa Chery','GWM','Iveco','Scania','DAF','MAN','Moto Honda','Moto Yamaha','Outra'];
 const EF=[['nome','Empresa'],['cnpj','CNPJ'],['telefone','Telefone'],['email','E-mail'],['responsavel','Responsável']];
 const uid=()=>Math.random().toString(36).slice(2,10),logoUrl=p=>sb.storage.from('logos').getPublicUrl(p).data.publicUrl;
-const go=p=>{pg=p;edId=null;({condo:()=>condoForm(false),emp:empPage,apr:aprPage})[p]()};
+const go=p=>{pg=p;edId=null;({condo:()=>condoForm(false),emp:empPage,apr:aprPage,vis:()=>visPage('visitante'),srv:()=>visPage('servico')})[p]()};
 const ph=a=>{const i='p'+(++pc);return `<div class="ph"><img id="${i}i" alt="" hidden><div><input type="file" accept="image/png,image/jpeg" onchange="pick('${i}',this)"><button type="button" onclick="cam('${i}')">📷 Câmera</button></div><input type="hidden" id="${i}" ${a}></div>`};
 function setPh(i,v){$(i).value=v||'';const m=$(i+'i');m.src=v||'';m.hidden=!v}
 function shrink(src,cb,max=240){const im=new Image();im.onload=()=>{const s=Math.min(1,max/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=im.width*s;c.height=im.height*s;c.getContext('2d').drawImage(im,0,0,c.width,c.height);cb(c.toDataURL('image/jpeg',.8))};im.src=src}
@@ -129,6 +129,49 @@ async function sendPub(token){
   if(error){$('envb').disabled=false;return alert(error.message)}
   $('main').innerHTML='<div class="card"><h3>Cadastro enviado!</h3><p>Aguarde a aprovação do administrador do condomínio.</p></div>';
 }
+
+/* ===== Bloco 3: visitantes e prestadores de serviço ===== */
+const fmt=v=>v?new Date(v).toLocaleString('pt-BR'):'—',toLoc=v=>v?new Date(Date.parse(v)-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,16):'',iso=v=>v?new Date(v).toISOString():null;
+async function authOpts(v,sel=''){
+  let n=['Administração do condomínio'];
+  if(v&&v!=='C'){const[{data:e},{data:cs}]=await Promise.all([sb.from('empresas').select('responsavel').eq('id',v).single(),sb.from('colaboradores').select('nome').eq('empresa_id',v).eq('status','aprovado').order('nome')]);n=[e?.responsavel,...(cs||[]).map(c=>c.nome)].filter(Boolean)}
+  $('v_aut').innerHTML='<option value="">Selecione</option>'+[...new Set(n)].map(x=>`<option>${esc(x)}</option>`).join('');$('v_aut').value=sel}
+async function visPage(t){
+  const s=t==='servico';
+  const[{data:es},{data:vs}]=await Promise.all([sb.from('empresas').select('id,nome').eq('condo_id',condo.id).order('nome'),sb.from('visitas').select('*,empresas(nome)').eq('condo_id',condo.id).eq('tipo',t).order('entrada',{ascending:false}).limit(200)]);
+  const paths=(vs||[]).map(v=>v.foto_path).filter(Boolean),urls={};
+  if(paths.length){const{data}=await sb.storage.from('fotos').createSignedUrls(paths,3600);(data||[]).forEach(x=>urls[x.path]=x.signedUrl)}
+  const inp=(k,l,x='')=>`<label>${l}<input id="v_${k}" ${x}></label>`;
+  $('main').innerHTML=`<h2>${s?'Cadastro de prestadores de serviço':'Cadastro de visitantes'}</h2><div class="card" id="fv"><label>Foto (arquivo ou câmera)${ph('data-f="foto"')}</label><div class="g">${inp('nome','Nome *')}${inp('rg','RG')}${inp('cpf','CPF *','onblur="lastV(this)"')}${s?inp('empresa_representada','Empresa que representa *')+inp('tipo_servico','Tipo de serviço *'):''}<label>Local da visita *<select id="v_local" onchange="authOpts(this.value)"><option value="">Selecione</option><option value="C">${esc(condo.nome)} (condomínio)</option>${(es||[]).map(e=>`<option value="${e.id}">${esc(e.nome)}</option>`).join('')}</select></label><label>Autorizado por<select id="v_aut"><option value="">Selecione o local</option></select></label>${inp('entrada','Hora de entrada','type="datetime-local"')}${inp('saida','Hora de saída','type="datetime-local"')}${inp('placa','Placa')}<label>Marca<select id="v_marca"><option value="">Selecione</option>${CARROS.map(x=>`<option>${x}</option>`).join('')}</select></label>${inp('modelo','Modelo')}${inp('cor','Cor')}${inp('motivo','Motivo da visita')}</div><p id="lv" class="card" hidden></p><button class="p" onclick="saveVis('${t}')">${edId?'Salvar alterações':'Registrar'}</button> ${edId?`<button onclick="go('${s?'srv':'vis'}')">Cancelar</button>`:''}</div>
+  <h3>Registros</h3><div class="card tw"><table><tr><th class="th">Foto</th><th>Nome</th><th>CPF</th>${s?'<th>Empresa / Serviço</th>':''}<th>Local</th><th>Autorizado por</th><th>Entrada</th><th>Saída</th><th></th></tr>${(vs||[]).map(v=>`<tr><td class="th">${urls[v.foto_path]?`<img src="${urls[v.foto_path]}" alt="">`:''}</td><td>${esc(v.nome)}</td><td>${esc(v.cpf)}</td>${s?`<td>${esc(v.empresa_representada)} / ${esc(v.tipo_servico)}</td>`:''}<td>${esc(v.empresas?.nome||condo.nome+' (condomínio)')}</td><td>${esc(v.autorizado_por)}</td><td>${fmt(v.entrada)}</td><td>${fmt(v.saida)}</td><td>${v.saida?'':`<button onclick="saidaVis('${v.id}','${t}')">Saída agora</button> `}<button onclick="editVis('${v.id}','${t}')">Editar</button> <button class="d" onclick="delVis('${v.id}','${t}')">Excluir</button></td></tr>`).join('')||`<tr><td colspan="${s?9:8}">Nenhum registro.</td></tr>`}</table></div>`;
+  if(edId){const v=vs.find(x=>x.id===edId);['nome','rg','cpf','empresa_representada','tipo_servico','placa','modelo','cor','motivo'].forEach(k=>{if($('v_'+k))$('v_'+k).value=v[k]||''});
+    $('v_marca').value=v.marca||'';$('v_local').value=v.empresa_destino_id||'C';await authOpts($('v_local').value,v.autorizado_por||'');$('v_entrada').value=toLoc(v.entrada);$('v_saida').value=toLoc(v.saida);
+    const f=$('fv').querySelector('[data-f=foto]');if(urls[v.foto_path]){const m=$(f.id+'i');m.src=urls[v.foto_path];m.hidden=false}}
+  else $('v_entrada').value=toLoc(new Date().toISOString());
+}
+async function lastV(el){
+  const c=el.value.trim(),n=$('lv');if(!c){n.hidden=true;return}
+  const{data}=await sb.from('visitas').select('*,empresas(nome)').eq('condo_id',condo.id).eq('cpf',c).order('entrada',{ascending:false}).limit(1);const p=data?.[0];
+  if(!p){n.hidden=true;return}
+  n.hidden=false;n.textContent=`Última visita: ${fmt(p.entrada)} — ${p.empresas?.nome||condo.nome+' (condomínio)'}${p.autorizado_por?' — autorizado por '+p.autorizado_por:''}`;
+  if(!$('v_nome').value)['nome','rg','empresa_representada','tipo_servico','placa','modelo','cor'].forEach(k=>{if($('v_'+k)&&p[k])$('v_'+k).value=p[k]}),$('v_marca').value=p.marca||'';
+}
+async function saveVis(t){
+  const s=t==='servico',g=k=>$('v_'+k).value.trim(),loc=$('v_local').value;
+  const o={condo_id:condo.id,tipo:t,nome:g('nome'),rg:g('rg'),cpf:g('cpf'),placa:g('placa').toUpperCase(),marca:$('v_marca').value,modelo:g('modelo'),cor:g('cor'),motivo:g('motivo'),autorizado_por:$('v_aut').value,empresa_destino_id:loc==='C'?null:loc,entrada:iso(g('entrada'))||new Date().toISOString(),saida:iso(g('saida'))};
+  if(s){o.empresa_representada=g('empresa_representada');o.tipo_servico=g('tipo_servico')}
+  if(!o.nome||!o.cpf||!loc||(s&&(!o.empresa_representada||!o.tipo_servico)))return alert('Preencha os campos obrigatórios (*).');
+  const fd=$('fv').querySelector('[data-f=foto]').value;let old=null;
+  if(edId)old=(await sb.from('visitas').select('foto_path').eq('id',edId).single()).data?.foto_path;
+  if(fd){const p=await up(`${condo.id}/vis/${uid()}.jpg`,fd);if(!p)return alert('Falha ao enviar a foto.');o.foto_path=p}
+  const{error}=edId?await sb.from('visitas').update(o).eq('id',edId):await sb.from('visitas').insert(o);
+  if(error)return alert(error.message);
+  if(fd&&old)await sb.storage.from('fotos').remove([old]);
+  edId=null;visPage(t);
+}
+async function saidaVis(id,t){await sb.from('visitas').update({saida:new Date().toISOString()}).eq('id',id);visPage(t)}
+const editVis=(id,t)=>{edId=id;visPage(t);scrollTo(0,0)};
+async function delVis(id,t){if(!confirm('Excluir este registro e a foto?'))return;const{data:v}=await sb.from('visitas').select('foto_path').eq('id',id).single();if(v?.foto_path)await sb.storage.from('fotos').remove([v.foto_path]);await sb.from('visitas').delete().eq('id',id);visPage(t)}
 
 boot();
 </script></body></html>
