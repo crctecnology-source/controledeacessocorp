@@ -24,17 +24,18 @@ let condo=null,galpoes=[];
 const FL=[['nome','Nome'],['cnpj','CNPJ'],['cep','CEP'],['endereco','Endereço'],['numero','Número'],['bairro','Bairro'],['cidade','Cidade'],['uf','UF']];
 const NAV=[['🏢','Condomínio','condo'],['🏭','Condôminos (empresas)','emp'],['✅','Aprovações','apr'],['🧑‍💼','Visitantes','vis'],['🛠️','Prestadores de serviço','srv'],['📟','Dispositivos','dev'],['👥','Usuários do sistema','usr'],['📄','Relatórios','rel'],['🔒','Privacidade (LGPD)','lgpd']];
 
-async function boot(){
+async function boot(){try{await boot0()}catch(e){console.error(e);app.innerHTML=`<div class="box"><h3>Erro ao carregar o sistema</h3><p>${esc(e.message||e)}</p><button onclick="sb.auth.signOut().then(()=>location.reload())">Sair e tentar de novo</button></div>`}}
+async function boot0(){
   if(location.hash.startsWith('#empresa-'))return publico(location.hash.slice(9));
   const{data:{session}}=await sb.auth.getSession(); if(!session)return showLogin();
-  const{data:p}=await sb.from('profiles').select('*').eq('id',session.user.id).maybeSingle();
+  const{data:p,error:pe}=await sb.from('profiles').select('*').eq('id',session.user.id).maybeSingle();if(pe)throw pe;
   if(!p){condo=null;galpoes=[];return shell(true)}            // primeiro acesso: cadastro do condomínio obrigatório
   papel=p.papel;condo=(await sb.from('condos').select('*').eq('id',p.condo_id).single()).data;
   galpoes=(await sb.from('galpoes').select('*').eq('condo_id',p.condo_id).order('identificacao')).data||[];
   shell(false);
 }
 function showLogin(){app.innerHTML=`<div class="box"><h2>Controle de Acesso</h2><label>E-mail<input id="em" type="email"></label><label>Senha (mín. 8 caracteres)<input id="pw" type="password"></label><button class="p" onclick="entrar()">Entrar</button><button onclick="criar()">Primeiro acesso: criar conta de administrador</button></div>`}
-async function entrar(){const{error}=await sb.auth.signInWithPassword({email:$('em').value,password:$('pw').value});error?alert('E-mail ou senha inválidos.'):boot()}
+async function entrar(){const{error}=await sb.auth.signInWithPassword({email:$('em').value,password:$('pw').value});error?alert('Não foi possível entrar: '+error.message):boot()}
 async function criar(){if($('pw').value.length<8)return alert('Use uma senha com no mínimo 8 caracteres.');const{data,error}=await sb.auth.signUp({email:$('em').value,password:$('pw').value,options:{emailRedirectTo:location.origin+location.pathname}});if(error)return alert(error.message);data.session?boot():alert('Confirme o e-mail enviado e depois entre.')}
 async function shell(first){
   let lg='';if(condo?.logo_path)lg=`<img src="${logoUrl(condo.logo_path)}" alt="">`;
