@@ -15,10 +15,36 @@ button{font:inherit;color:var(--tx);background:var(--sf);border:1px solid var(--
 table{border-collapse:collapse;width:100%}th,td{border:1px solid var(--bd);padding:4px 6px;font-size:13px;text-align:left;vertical-align:middle}td input,td select{width:100%;min-width:90px}.tw{overflow-x:auto;margin-top:8px}.ph{display:flex;gap:8px;align-items:center}.ph img{width:56px;height:56px;object-fit:cover;border-radius:6px}.ph>div{display:flex;flex-direction:column;gap:4px}.ph input[type=file]{width:170px;font-size:11px}.md{position:fixed;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;z-index:9}.md>div{background:var(--sf);padding:12px;border-radius:10px}.md video{max-width:100%;width:420px}.th{width:48px}.th img{width:40px;height:40px;object-fit:cover;border-radius:4px}button.d{color:#c62828}
 @media print{nav,.no,button{display:none!important}body{background:#fff;color:#000}#shell{display:block}th{background:#eee;color:#000}.card{border:0}}
 [hidden]{display:none!important}
+/* ===== Tema ===== */
+:root{color-scheme:light}
+body{background:#FFFEFE;color:#1f1f33}
+#c{background:#FFFEFE}
+nav{background:#444AFF;border-right:0;box-shadow:2px 0 10px rgba(22,37,212,.25)}
+nav button,nav button:not(:disabled){background:#1625D4;color:#fff;border:0;border-radius:12px;box-shadow:0 2px 5px rgba(0,0,0,.28);transition:.15s}
+nav button:not(:disabled):hover{filter:brightness(1.2);transform:translateY(-1px)}
+nav button:disabled{opacity:.4}
+header{background:#444AFF;color:#fff;border:0;border-radius:14px;padding:10px 14px;box-shadow:0 3px 10px rgba(68,74,255,.3)}
+header button{background:#1625D4;color:#fff;border:0}
+h2,h3,h4{color:#2a2a3c}
+.card,.box{background:#3B3A3A;color:#f2f2f2;border:1px solid #2b2a2a;border-radius:14px;box-shadow:0 4px 14px rgba(0,0,0,.18)}
+label{color:#e8e8e8;opacity:1}
+input,select,textarea{background:#7D7C7C;color:#111;border:1px solid #5f5e5e;border-radius:8px;box-shadow:inset 2px 2px 5px rgba(0,0,0,.45),inset -1px -1px 3px rgba(255,255,255,.2)}
+input::placeholder,textarea::placeholder{color:#2e2e2e;opacity:.7}
+input:focus,select:focus,textarea:focus{outline:2px solid #9ea2ff;outline-offset:1px}
+input[type=checkbox],input[type=radio]{background:none;box-shadow:none;accent-color:#1625D4}
+button{background:#1625D4;color:#fff;border:0;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,.28);transition:.15s}
+button:hover{filter:brightness(1.18)}
+button.p{background:#1625D4}
+button.d{background:#b3261e;color:#fff}
+th{background:#4a4949;color:#fff}
+th,td{border-color:#5a5959}
+td{color:#f2f2f2}
+.md>div{background:#3B3A3A;color:#f2f2f2}
+@media print{.card,.box{background:#fff!important;color:#000!important;box-shadow:none}td,th,label{color:#000!important}th{background:#eee!important}header{background:#fff!important;color:#000!important;box-shadow:none}input,select{box-shadow:none}}
 </style></head><body><div id="app"></div>
 <script>
 /* 1) Cole aqui os dados do seu projeto (Supabase > Project Settings > API). A anon key é pública por desenho; a proteção vem do RLS. */
-const SUPABASE_URL='https://jwjiqguxrutqsksdsrva.supabase.co', SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp3amlxZ3V4cnV0cXNrc2RzcnZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM4ODE5NzEsImV4cCI6MjEwOTQ1Nzk3MX0.PFMEScTm9tObc5_BUJCkQzZHAPhOyi0OL2u67Ybrx9k';
+const SUPABASE_URL='https://jwjiqguxrutqsksdsrva.supabase.co/rest/v1/', SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp3amlxZ3V4cnV0cXNrc2RzcnZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM4ODE5NzEsImV4cCI6MjEwOTQ1Nzk3MX0.PFMEScTm9tObc5_BUJCkQzZHAPhOyi0OL2u67Ybrx9k';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY),$=id=>document.getElementById(id),app=$('app');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let condo=null,galpoes=[];
